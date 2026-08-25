@@ -1,4 +1,4 @@
-const BASE_URL = "https://manaralmoslhen-store.onrender.com";
+const BASE_URL = "https://jel-al-amal-store.onrender.com";
 
 export const api = {
   // --- تسجيل الدخول ---
@@ -173,7 +173,7 @@ export const api = {
     return data;
   },
 
-  // --- إدارة الطلبات والتسوق (مُعدّلة) ---
+  // --- إدارة الطلبات والتسوق ---
   submitOrder: async (studentId, items) => {
     const res = await fetch(`${BASE_URL}/api/students/${studentId}/checkout`, {
       method: "POST",
