@@ -43,19 +43,19 @@ export default function ProductsTab() {
     }
   }
 
-function startEdit(product) {
-  setEditingProduct(product);
-  setName(product.name);
-  setCategory(product.category);
-  setPrice(product.price.toString());
-  setImagePreview(getImageUrl(product.imageUrl));
-  setImage(null);
-}
+  function startEdit(product) {
+    setEditingProduct(product);
+    setName(product.name);
+    setCategory(product.category);
+    setPrice(product.price.toString());
+    setImagePreview(getImageUrl(product.imageUrl));
+    setImage(null);
+  }
 
-function getImageUrl(imageUrl) {
-  if (!imageUrl) return null;
-  return imageUrl; 
-}
+  function getImageUrl(imageUrl) {
+    if (!imageUrl) return null;
+    return imageUrl; 
+  }
 
   function resetForm() {
     setEditingProduct(null);
@@ -184,6 +184,27 @@ function getImageUrl(imageUrl) {
     };
 
     reader.readAsBinaryString(file);
+  }
+
+  function handleExportToExcel() {
+    if (!products || products.length === 0) {
+      showToast("لا توجد منتجات لتصديرها", "warning");
+      return;
+    }
+
+    const formattedData = products.map((p) => ({
+      "اسم المنتج": p.name,
+      "التصنيف": p.category,
+      "السعر (نقاط)": p.price,
+      "رابط الصورة": p.imageUrl || "", // تم إضافة رابط الصورة هنا
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(formattedData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "المنتجات");
+
+    XLSX.writeFile(workbook, "products_list.xlsx");
+    showToast("تم تصدير ملف Excel بنجاح! 📥", "success");
   }
 
   return (
@@ -402,36 +423,59 @@ function getImageUrl(imageUrl) {
 
       {/* جدول عرض المنتجات */}
       <div style={{ background: "#ffffff", padding: "24px", borderRadius: "16px", border: "1px solid #f1f5f9", boxShadow: "0 2px 10px rgba(0, 0, 0, 0.03)" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", flexWrap: "wrap", gap: "10px" }}>
           <h3 style={{ margin: 0, fontSize: "18px", color: "#1e293b", fontWeight: "700" }}>
             📦 قائمة المنتجات ({products.length})
           </h3>
 
-          <label
-            style={{
-              background: "#eff6ff",
-              color: "#2563eb",
-              border: "1px solid #bfdbfe",
-              padding: "8px 16px",
-              borderRadius: "10px",
-              cursor: "pointer",
-              fontWeight: "600",
-              fontSize: "13px",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "6px",
-              transition: "all 0.2s ease"
-            }}
-          >
-            {loading ? "⏳ جاري الاستيراد..." : "📤 استيراد من Excel"}
-            <input
-              type="file"
-              accept=".xlsx, .xls, .csv"
-              onChange={handleFileUpload}
-              style={{ display: "none" }}
-              disabled={loading}
-            />
-          </label>
+          <div style={{ display: "flex", gap: "10px" }}>
+            {/* زر التصدير إلى إكسل */}
+            <button
+              onClick={handleExportToExcel}
+              style={{
+                background: "#f0fdf4",
+                color: "#16a34a",
+                border: "1px solid #bbf7d0",
+                padding: "8px 16px",
+                borderRadius: "10px",
+                cursor: "pointer",
+                fontWeight: "600",
+                fontSize: "13px",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px"
+              }}
+            >
+              📥 تصدير إلى Excel
+            </button>
+
+            {/* زر الاستيراد من إكسل */}
+            <label
+              style={{
+                background: "#eff6ff",
+                color: "#2563eb",
+                border: "1px solid #bfdbfe",
+                padding: "8px 16px",
+                borderRadius: "10px",
+                cursor: "pointer",
+                fontWeight: "600",
+                fontSize: "13px",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                transition: "all 0.2s ease"
+              }}
+            >
+              {loading ? "⏳ جاري الاستيراد..." : "📤 استيراد من Excel"}
+              <input
+                type="file"
+                accept=".xlsx, .xls, .csv"
+                onChange={handleFileUpload}
+                style={{ display: "none" }}
+                disabled={loading}
+              />
+            </label>
+          </div>
         </div>
 
         <div style={{ overflowX: "auto" }}>

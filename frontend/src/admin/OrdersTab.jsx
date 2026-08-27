@@ -31,6 +31,8 @@ export default function OrdersTab() {
     return acc;
   }, {});
 
+    const studentsCount = Object.keys(groupedOrders).length;
+
   const toggleStudent = (studentId) => {
     setExpandedStudentId(expandedStudentId === studentId ? null : studentId);
   };
@@ -64,6 +66,7 @@ export default function OrdersTab() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", flexWrap: "wrap", gap: "12px" }}>
         <h3 style={{ margin: 0, color: "#1e293b", fontSize: "16px", fontWeight: "700" }}>
           📋 طلبات الطلاب <span style={{ fontSize: "12px", color: "#64748b", fontWeight: "normal", display: "block", marginTop: "2px" }}>(انقر على اسم الطالب للتفاصيل)</span>
+          <span>{studentsCount}</span>
         </h3>
         <button
           onClick={exportOrdersToExcel}
