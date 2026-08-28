@@ -1,0 +1,32 @@
+/* WebsiteClosed.module.css */
+
+.website-closed-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  width: 100vw;
+  background-color: var(--primary-background-color, #f0f2f5); /* Assuming a primary background variable */
+  flex-direction: column;
+  color: var(--text-primary-color, #333); /* Assuming a primary text color */
+}
+
+.message-box {
+  padding: 40px 50px;
+  border-radius: 12px;
+  text-align: center;
+  background-color: #ffffff; /* White card background */
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+  max-width: 600px;
+}
+
+.message-box h2 {
+  color: var(--danger-color, #dc3545);
+  margin-bottom: 10px;
+  font-size: 2.5em;
+}
+
+.message-box p {
+  margin-bottom: 15px;
+  line-height: 1.6;
+}

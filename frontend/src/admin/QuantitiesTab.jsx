@@ -5,6 +5,7 @@ import { api } from "../api.js";
 export default function QuantitiesTab() {
   const [quantities, setQuantities] = useState([]);
   const [loading, setLoading] = useState(true);
+    const [products, setProducts] = useState([]);
 
   useEffect(() => {
     loadQuantitiesData();
@@ -76,21 +77,45 @@ export default function QuantitiesTab() {
       .sort((a, b) => b.totalQuantity - a.totalQuantity);
   }
 
-  function exportToExcel() {
-    if (!quantities.length) return alert("لا توجد بيانات كميات للتصدير حالياً.");
+   async function loadProducts() {
+    try {
+      const data = await api.getProducts("All");
+      setProducts(data);
+    } catch (error) {
+      console.error("خطأ في تحميل المنتجات:", error);
+    }
+  }
 
-    const exportData = quantities.map((q, idx) => ({
+  async function exportToExcel() {
+  if (!quantities.length) {
+    return alert("لا توجد بيانات كميات للتصدير حالياً.");
+  }
+
+  const productsData = await loadProducts();
+
+  const exportData = quantities.map((q, idx) => {
+    const product = productsData.find(
+      (p) => p.name === q.name
+    );
+
+    return {
       "م": idx + 1,
       "اسم المنتج": q.name,
       "إجمالي الكمية المطلوبة": q.totalQuantity,
-    }));
+      "النوع": product?.category || "غير محدد",
+    };
+  });
 
-    const ws = XLSX.utils.json_to_sheet(exportData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "الكميات المطلوبة");
-    XLSX.writeFile(wb, `كميات_المنتجات_${new Date().toISOString().slice(0, 10)}.xlsx`);
-  }
+  const ws = XLSX.utils.json_to_sheet(exportData);
+  const wb = XLSX.utils.book_new();
 
+  XLSX.utils.book_append_sheet(wb, ws, "الكميات المطلوبة");
+
+  XLSX.writeFile(
+    wb,
+    `كميات_المنتجات_${new Date().toISOString().slice(0, 10)}.xlsx`
+  );
+}
   return (
     <div
       style={{
