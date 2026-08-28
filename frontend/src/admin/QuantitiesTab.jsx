@@ -5,15 +5,19 @@ import { api } from "../api.js";
 export default function QuantitiesTab() {
   const [quantities, setQuantities] = useState([]);
   const [loading, setLoading] = useState(true);
-    const [products, setProducts] = useState([]);
+  const [products, setProducts] = useState([]);
 
   useEffect(() => {
     loadQuantitiesData();
   }, []);
 
+  // ==========================================
+  // تحميل وتجميع الكميات
+  // ==========================================
   async function loadQuantitiesData() {
     try {
       setLoading(true);
+
       let data = null;
 
       // 1. جلب الكميات المجمعة مباشرة من السيرفر
@@ -22,10 +26,12 @@ export default function QuantitiesTab() {
           data = await api.getOrderQuantities();
         }
       } catch (e) {
-        console.warn("تعذر جلب الكميات المجمعة، جاري محاولة جلب قائمة الطلبات الخام...");
+        console.warn(
+          "تعذر جلب الكميات المجمعة، جاري محاولة جلب قائمة الطلبات الخام..."
+        );
       }
 
-      // 2. المحاولة الثانية: جلب قائمة الطلبات إذا لم تتوفر دالة التجميع المباشر
+      // 2. المحاولة الثانية: جلب قائمة الطلبات
       if (!data || (Array.isArray(data) && data.length === 0)) {
         if (typeof api.getOrders === "function") {
           data = await api.getOrders();
@@ -35,36 +41,69 @@ export default function QuantitiesTab() {
       }
 
       const result = aggregateProductQuantities(data);
+
       setQuantities(result);
     } catch (err) {
       console.error("خطأ أثناء تحميل كميات المنتجات:", err);
+      setQuantities([]);
     } finally {
       setLoading(false);
     }
   }
 
+  // ==========================================
+  // تجميع كميات المنتجات
+  // ==========================================
   function aggregateProductQuantities(data) {
-    if (!data || !Array.isArray(data) || data.length === 0) return [];
+    if (!data || !Array.isArray(data) || data.length === 0) {
+      return [];
+    }
 
     const firstItem = data[0];
 
-    // حالة 1: البيانات قادمة مجمعة من السيرفر
-    if (firstItem.totalQuantity !== undefined || firstItem.totalRequested !== undefined || firstItem._id) {
-      return data.map((item) => ({
-        name: item.name || item._id || "منتج غير معنون",
-        totalQuantity: Number(item.totalQuantity || item.totalRequested || 0),
-      }));
+    // ==========================================
+    // الحالة 1:
+    // البيانات قادمة مجمعة من السيرفر
+    // ==========================================
+    if (
+      firstItem.totalQuantity !== undefined ||
+      firstItem.totalRequested !== undefined ||
+      firstItem._id
+    ) {
+      return data
+        .map((item) => ({
+          name: item.name || item._id || "منتج غير معنون",
+          totalQuantity: Number(
+            item.totalQuantity || item.totalRequested || 0
+          ),
+        }))
+        .sort((a, b) => b.totalQuantity - a.totalQuantity);
     }
 
-    // حالة 2: تجميع الطلبات التفصيلية من جهة العميل
+    // ==========================================
+    // الحالة 2:
+    // تجميع الطلبات التفصيلية من جهة العميل
+    // ==========================================
     const countsMap = {};
+
     data.forEach((order) => {
-      const items = order.items || order.products || order.cart || [];
+      const items =
+        order.items ||
+        order.products ||
+        order.cart ||
+        [];
+
       if (Array.isArray(items)) {
         items.forEach((item) => {
-          const productName = item.name || item.product?.name || "منتج غير معنون";
+          const productName =
+            item.name ||
+            item.product?.name ||
+            "منتج غير معنون";
+
           const qty = Number(item.quantity || 1);
-          countsMap[productName] = (countsMap[productName] || 0) + qty;
+
+          countsMap[productName] =
+            (countsMap[productName] || 0) + qty;
         });
       }
     });
@@ -77,45 +116,96 @@ export default function QuantitiesTab() {
       .sort((a, b) => b.totalQuantity - a.totalQuantity);
   }
 
-   async function loadProducts() {
+  // ==========================================
+  // تحميل المنتجات
+  // ==========================================
+  async function loadProducts() {
     try {
       const data = await api.getProducts("All");
+
       setProducts(data);
+
+      // مهم:
+      // نرجع البيانات حتى نستخدمها مباشرة
+      // داخل exportToExcel
+      return Array.isArray(data) ? data : [];
     } catch (error) {
       console.error("خطأ في تحميل المنتجات:", error);
+      return [];
     }
   }
 
+  // ==========================================
+  // تصدير Excel
+  // ==========================================
   async function exportToExcel() {
-  if (!quantities.length) {
-    return alert("لا توجد بيانات كميات للتصدير حالياً.");
+    if (!quantities.length) {
+      return alert("لا توجد بيانات كميات للتصدير حالياً.");
+    }
+
+    try {
+      // تحميل المنتجات للحصول على التصنيف
+      const productsData = await loadProducts();
+
+      const exportData = quantities.map((q, idx) => {
+        // البحث عن المنتج
+        const product = productsData.find(
+          (p) =>
+            String(p.name || "").trim() ===
+            String(q.name || "").trim()
+        );
+
+        return {
+          "م": idx + 1,
+
+          "اسم المنتج": q.name,
+
+          "التصنيف": product?.category || "غير محدد",
+
+          "إجمالي الكمية المطلوبة": q.totalQuantity,
+        };
+      });
+
+      // إنشاء ورقة Excel
+      const ws = XLSX.utils.json_to_sheet(exportData);
+
+      // إنشاء ملف Excel
+      const wb = XLSX.utils.book_new();
+
+      // إضافة الورقة للملف
+      XLSX.utils.book_append_sheet(
+        wb,
+        ws,
+        "الكميات المطلوبة"
+      );
+
+      // تحسين عرض الأعمدة
+      ws["!cols"] = [
+        { wch: 8 },  // م
+        { wch: 35 }, // اسم المنتج
+        { wch: 20 }, // التصنيف
+        { wch: 25 }, // الكمية
+      ];
+
+      // اسم الملف
+      const fileName = `كميات_المنتجات_${new Date()
+        .toISOString()
+        .slice(0, 10)}.xlsx`;
+
+      // تحميل الملف
+      XLSX.writeFile(wb, fileName);
+    } catch (error) {
+      console.error("خطأ أثناء تصدير Excel:", error);
+
+      alert(
+        "حدث خطأ أثناء تصدير ملف Excel. يرجى المحاولة مرة أخرى."
+      );
+    }
   }
 
-  const productsData = await loadProducts();
-
-  const exportData = quantities.map((q, idx) => {
-    const product = productsData.find(
-      (p) => p.name === q.name
-    );
-
-    return {
-      "م": idx + 1,
-      "اسم المنتج": q.name,
-      "إجمالي الكمية المطلوبة": q.totalQuantity,
-      "النوع": product?.category || "غير محدد",
-    };
-  });
-
-  const ws = XLSX.utils.json_to_sheet(exportData);
-  const wb = XLSX.utils.book_new();
-
-  XLSX.utils.book_append_sheet(wb, ws, "الكميات المطلوبة");
-
-  XLSX.writeFile(
-    wb,
-    `كميات_المنتجات_${new Date().toISOString().slice(0, 10)}.xlsx`
-  );
-}
+  // ==========================================
+  // UI
+  // ==========================================
   return (
     <div
       style={{
@@ -123,10 +213,12 @@ export default function QuantitiesTab() {
         padding: "24px",
         borderRadius: "16px",
         border: "1px solid #f1f5f9",
-        boxShadow: "0 2px 10px rgba(0, 0, 0, 0.03)"
+        boxShadow: "0 2px 10px rgba(0, 0, 0, 0.03)",
       }}
     >
-      {/* الهيدر والعنوان وزر التصدير */}
+      {/* ================================
+          Header
+      ================================= */}
       <div
         style={{
           display: "flex",
@@ -134,47 +226,95 @@ export default function QuantitiesTab() {
           alignItems: "center",
           flexWrap: "wrap",
           gap: "12px",
-          marginBottom: "24px"
+          marginBottom: "24px",
         }}
       >
         <div>
-          <h3 style={{ margin: 0, color: "#1e293b", fontSize: "18px", fontWeight: "700" }}>
+          <h3
+            style={{
+              margin: 0,
+              color: "#1e293b",
+              fontSize: "18px",
+              fontWeight: "700",
+            }}
+          >
             📊 ملخص كميات المنتجات المطلوبة
           </h3>
-          <p style={{ margin: "4px 0 0", fontSize: "13px", color: "#64748b" }}>
+
+          <p
+            style={{
+              margin: "4px 0 0",
+              fontSize: "13px",
+              color: "#64748b",
+            }}
+          >
             حصر تلقائي شامِل لجميع المنتجات المطلوبة في النظام
           </p>
         </div>
 
+        {/* زر التصدير */}
         <button
           onClick={exportToExcel}
           disabled={quantities.length === 0}
           style={{
-            background: quantities.length === 0 ? "#cbd5e1" : "#16a34a",
+            background:
+              quantities.length === 0
+                ? "#cbd5e1"
+                : "#16a34a",
+
             color: "white",
+
             border: "none",
+
             padding: "10px 18px",
+
             borderRadius: "10px",
+
             fontWeight: "600",
-            cursor: quantities.length === 0 ? "not-allowed" : "pointer",
+
+            cursor:
+              quantities.length === 0
+                ? "not-allowed"
+                : "pointer",
+
             fontSize: "14px",
-            boxShadow: quantities.length === 0 ? "none" : "0 2px 6px rgba(22, 163, 74, 0.2)",
+
+            boxShadow:
+              quantities.length === 0
+                ? "none"
+                : "0 2px 6px rgba(22, 163, 74, 0.2)",
+
             display: "flex",
+
             alignItems: "center",
+
             gap: "8px",
-            transition: "all 0.2s ease"
+
+            transition: "all 0.2s ease",
           }}
         >
           📥 تصدير الكميات إلى Excel
         </button>
       </div>
 
-      {/* عرض حالات التحميل، لا يوجد بيانات، أو الجدول */}
+      {/* ================================
+          Loading
+      ================================= */}
       {loading ? (
-        <div style={{ textAlign: "center", color: "#64748b", padding: "40px 0", fontSize: "14px" }}>
+        <div
+          style={{
+            textAlign: "center",
+            color: "#64748b",
+            padding: "40px 0",
+            fontSize: "14px",
+          }}
+        >
           ⏳ جاري جلب وحساب الكميات...
         </div>
       ) : quantities.length === 0 ? (
+        /* ================================
+           No Data
+        ================================= */
         <div
           style={{
             textAlign: "center",
@@ -183,29 +323,78 @@ export default function QuantitiesTab() {
             background: "#f8fafc",
             borderRadius: "12px",
             border: "1px dashed #cbd5e1",
-            fontSize: "14px"
+            fontSize: "14px",
           }}
         >
           📦 لا توجد أي طلبات مسجلة في النظام حتى الآن
         </div>
       ) : (
+        /* ================================
+           Table
+        ================================= */
         <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: "0", textAlign: "right" }}>
+          <table
+            style={{
+              width: "100%",
+              borderCollapse: "separate",
+              borderSpacing: "0",
+              textAlign: "right",
+            }}
+          >
             <thead>
-              <tr style={{ background: "#f8fafc", fontSize: "13px", color: "#475569" }}>
-                <th style={{ padding: "12px 16px", borderBottom: "1px solid #f1f5f9" }}>اسم المنتج</th>
-                <th style={{ padding: "12px 16px", borderBottom: "1px solid #f1f5f9", textAlign: "center" }}>
+              <tr
+                style={{
+                  background: "#f8fafc",
+                  fontSize: "13px",
+                  color: "#475569",
+                }}
+              >
+                <th
+                  style={{
+                    padding: "12px 16px",
+                    borderBottom:
+                      "1px solid #f1f5f9",
+                  }}
+                >
+                  اسم المنتج
+                </th>
+
+                <th
+                  style={{
+                    padding: "12px 16px",
+                    borderBottom:
+                      "1px solid #f1f5f9",
+                    textAlign: "center",
+                  }}
+                >
                   إجمالي الكمية المطلوبة
                 </th>
               </tr>
             </thead>
+
             <tbody>
               {quantities.map((item, idx) => (
                 <tr key={idx}>
-                  <td style={{ padding: "12px 16px", fontWeight: "600", color: "#1e293b", borderBottom: "1px solid #f1f5f9" }}>
+                  <td
+                    style={{
+                      padding: "12px 16px",
+                      fontWeight: "600",
+                      color: "#1e293b",
+                      borderBottom:
+                        "1px solid #f1f5f9",
+                    }}
+                  >
                     {item.name}
                   </td>
-                  <td style={{ padding: "12px 16px", textAlign: "center", borderBottom: "1px solid #f1f5f9" }}>
+
+                  <td
+                    style={{
+                      padding: "12px 16px",
+                      textAlign: "center",
+                      borderBottom:
+                        "1px solid #f1f5f9",
+                    }}
+                  >
                     <span
                       style={{
                         background: "#e6f7f8",
@@ -214,7 +403,7 @@ export default function QuantitiesTab() {
                         borderRadius: "20px",
                         fontWeight: "700",
                         fontSize: "13px",
-                        display: "inline-block"
+                        display: "inline-block",
                       }}
                     >
                       {item.totalQuantity} قطعة
